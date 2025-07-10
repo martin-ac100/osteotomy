@@ -1,0 +1,432 @@
+<!DOCTYPE html>
+<html>
+<head>
+   <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+   <div id="div_main" class="container">
+      <div id="div_view">
+         <table>
+            <tr>
+               <td width="50%"><canvas id="canvas_in"></canvas></td>
+               <td width="50%"><canvas id="canvas_out"/></td>
+            </tr>
+         </table>
+      </div>
+      <div>
+         <div id="div_ref_points">
+            <input type="file" accept="image/*" onchange="loadFile(event)">
+            <table width="100%">
+               <tr><td> <input type="button" id="FHC" value="femoral head center" class="cmdOff"> </td></tr>
+               <tr><td> <input type="button" id="FHR" value="femoral head rim" class="cmdOff"> </td></tr>
+               <tr><td> <input type="button" id="LFC" value="lateral femoral condyle" class="cmdOff"> </td></tr>
+               <tr><td> <input type="button" id="MFC" value="medial femoral condyle" class="cmdOff"> </td></tr>
+               <tr><td> <input type="button" id="LTC" value="lateral tibial condyle" class="cmdOff"> </td></tr>
+               <tr><td> <input type="button" id="MTC" value="medial tibial condyle" class="cmdOff"> </td></tr>
+               <tr><td> <input type="button" id="DTC" value="distal tibial center" class="cmdOff"> </td></tr>
+            </table>
+         </div>
+         <div id="div_angles" hidden="true">
+            <div>
+               <table width="100%" class="myTable">
+                  <tr><td>side: <output id="pre_side">N/A</output><output id="post_side" hidden="true"></output></td></tr>
+                  <tr><td>mTFA: <output id="pre_mTFA">N/A</output> <output id="pre_varus_valgus"></output></td><td>mTFA: <output id="post_mTFA">N/A</output> <output id="post_varus_valgus"></output></td></tr>
+                  <tr><td>Fujisawa: <output id="pre_Fujisawa">N/A</output></td><td>Fujisawa: <output id="post_Fujisawa">N/A</output></td></tr>
+                  <tr><td>mLDFA: <output id="pre_mLDFA">N/A</output></td><td>mLDFA: <output id="post_mLDFA">N/A</output></td></tr>
+                  <tr><td>mMPTA: <output id="pre_mMPTA">N/A</output></td><td>mMPTA: <output id="post_mMPTA">N/A</output></td></tr>
+                  <tr><td>JLCA: <output id="pre_JLCA">N/A</output></td><td>JLCA: <output id="post_JLCA">N/A</output></td></tr>
+               </table>
+            </div>
+            <hr>
+            <div>
+               <input type="checkbox" id="hip_autorotate" onclick="redraw()" checked />autorotate hip
+            </div>
+            <hr>
+            <div>
+               <input type="submit" id="OWOT" value="new open wedge OT" class="cmdOn" onclick="addOWOT(event)"></input>
+               <input type="submit" id="CWOT" value="new closed wedge OT" class="cmdOn" onclick="addCWOT(event)"></input>
+               <input type="submit" id="SCALE" value="calibrate" class="cmdOff" onclick="setScale(event)"></input>
+            </div>
+         </div>
+      </div>
+   </div>
+
+<script type="text/javascript" src="classes.js"></script>
+
+<script>
+const img = new Image();
+const modes = { default: 0, addPoint: 1, pointSelected: 2, movePoint: 3, moveView: 4};
+var mode = modes.default;
+var mode_params = {};
+
+const canvas = document.querySelector("#canvas_in");
+const canvas_out = document.querySelector("#canvas_out");
+const cmdOWOT = document.querySelector("#OWOT");
+const cmdCWOT = document.querySelector("#CWOT");
+const cmdScale = document.querySelector("#SCALE");
+const hip_autorotate = document.querySelector("#hip_autorotate");
+var canvas2;
+var view;
+
+var oldx,oldy;
+
+mouse_moved = false;
+mouse_down = false;
+
+var points = {FHC:null, FHR: null, LFC:null, MFC:null, LTC:null, MTC:null, DTC: null};
+var points_nonmovable = {};
+var bbox; 
+var angles= {mTFA: null, mLDFA: null, mMPTA: null, varus_valgus: null, side: null};
+var objs = {};
+var osteotomies = {};
+
+
+function addOWOT(event) {
+   var OT = new OWOT(points);
+   mode_params.obj = OT;
+   objs[OT.id] = OT;
+   mode_params.onfinish = OT.setup.bind(OT);
+   cmdOWOT.setAttribute("class","cmdSelect");
+   addPoint(points);
+}
+
+function addCWOT(event) {
+   var OT = new CWOT(points);
+   mode_params.obj = OT;
+   objs[OT.id] = OT;
+   mode_params.onfinish = OT.setup.bind(OT);
+   cmdCWOT.setAttribute("class","cmdSelect");
+   addPoint(points);
+}
+
+function setScale(event) {
+   var scale = new Scale(points);
+   mode_params.obj = scale;
+   objs.scale = scale;
+   mode_params.onfinish = scale.setup.bind(scale);
+   cmdScale.setAttribute("class","cmdSelect");
+   addPoint(points);
+}
+
+function drawObjs() {
+   for (i in objs) {
+      if (objs[i]) { objs[i].draw(view); }
+   }
+}
+
+function make_bbox(points) {
+   bbox = {}
+   var head_dia = 2 * points.FHC.getDistance(points.FHR.xy);
+   bbox.FHC = points.FHC
+   bbox.MPF =  new Point([points.FHC.x, points.FHC.y + head_dia]);
+   bbox.MPT = new Point([points.MTC.x + (points.MTC.x-points.LTC.x)/3, points.MTC.y]);
+   bbox.MDT = new Point([points.DTC.x + (points.MTC.x - points.LTC.x)/2, points.DTC.y + objs.TA.length/4]);
+   bbox.LDT = new Point([points.DTC.x - (points.MTC.x - points.LTC.x)/2, points.DTC.y + objs.TA.length/4]);
+   bbox.LPT = new Point([points.LTC.x + (points.LTC.x-points.MTC.x)/3, points.LTC.y]);
+   bbox.LPF =  new Point([points.FHC.x + (points.LTC.x - points.MTC.x)*1.2, points.FHC.y - head_dia]);
+}
+
+function draw_bbox(view) {
+   view.ctx.stroke(points2Path(bbox, view));
+}
+
+function rotatePoints(points,[cx,cy],angle) {
+   new_points = {};
+   for ( i in points ) {
+      new_points[i] = points[i].rotate([cx,cy],angle)
+   }
+   return new_points;
+}
+   
+function getNextPoint(points) {
+   for ( p in points ) { 
+      if ( ! points[p] ) return p;
+   }
+   return null;
+}
+
+function points2Path(points, view = null) {
+   var path = new Path2D();
+   var first = true;
+   var x,y;
+   for ( i in points ) {
+      [ x, y ] = points[i].toViewXY(view);
+      if (first) {
+         path.moveTo( x,y );
+         first = false;
+      }
+      else {
+         path.lineTo(x,y);
+      }
+   }
+   path.closePath();
+   return path;
+}
+
+function refPointsSet() {
+   document.querySelector("#div_ref_points").setAttribute("hidden","true");
+   document.querySelector("#div_angles").removeAttribute("hidden");
+}
+
+function addPoint(points) {
+   var p = getNextPoint(points);
+   if (p) {
+      try {
+         document.querySelector(`#${p}`).setAttribute('class','cmdSelect');
+      }
+      catch {}
+      mode = modes.addPoint;
+      mode_params.points = points;
+      mode_params.name = p;
+      canvas.style.cursor="crosshair";
+   }
+   else {
+      mode=modes.default;
+      canvas.style.cursor="default";
+      mode_params.onfinish();
+      updateObjs("pre");
+      drawObjs();
+   }
+}
+
+function updateObjs(prefix) {
+   if (! getNextPoint(points) ) {
+      angles.side = (points.MTC.x - points.LTC.x) > 0 ? "right" : "left";
+      objs.HEAD = new Circle(points.FHC, points.FHR);
+      objs.FJL = new Line(points.LFC, points.MFC);
+      var x = (points.MFC.x + points.LFC.x) / 2;
+      var y = objs.FJL.getY(x);
+      objs.FA = new Line(points.FHC, new Point([x,y]));
+      objs.TJL = new Line(points.LTC, points.MTC);
+      x = (points.LTC.x + points.MTC.x) / 2;
+      y = objs.TJL.getY(x);
+      objs.TA = new Line(new Point([x,y]), points.DTC);
+      objs.ML = new Line(points.FHC, points.DTC, "blue");
+
+      angles.mTFA = objs.TA.angle_deg - objs.FA.angle_deg;
+      if ( angles.mTFA > 0 && angles.side == "right" || angles.mTFA < 0 && angles.side == "left" ) {
+         angles.varus_valgus = "varus";
+      }
+      else {
+      angles.varus_valgus = "valgus";
+      }
+      angles.mTFA = Math.abs(angles.mTFA);
+      angles.mLDFA = objs.FJL.angle_deg - objs.FA.angle_deg;
+      angles.mMPTA = objs.TJL.angle_deg - objs.TA.angle_deg;
+      angles.JLCA = objs.TJL.angle_deg - objs.FJL.angle_deg;
+      if (angles.side == "left") {
+         angles.mLDFA = -angles.mLDFA;
+         angles.mMPTA = -angles.mMPTA;
+         angles.JLCA = -angles.JLCA;
+      }
+
+      if (angles.mLDFA < 0) { angles.mLDFA = angles.mLDFA + 360; }
+      if (angles.mMPTA < 0) { angles.mMPTA = angles.mMPTA + 360; }
+      if (angles.JLCA < 0) { angles.JLCA = angles.JLCA + 360; }
+      if (angles.JLCA > 180) {angles.JLCA = 360 - angles.JLCA;}
+
+      [ x, y ] = objs.ML.intersection( objs.TJL );
+      angles.Fujisawa = Math.round( 100 * (x - points.MTC.x) / (points.LTC.x - points.MTC.x) ) + "%";
+
+      for (i in angles) {
+         document.querySelector(`#${prefix}_${i}`).value = isNaN(angles[i]) ? angles[i] : Math.round(angles[i]);
+      }
+      
+      if (objs.scale) {
+         objs.scale.update();
+      }
+
+      for (i in osteotomies) {
+         osteotomies[i].update();
+      }
+
+      make_bbox(points);
+   }
+}
+
+
+function loadFile(event) {
+  img.src = URL.createObjectURL(event.target.files[0]);
+  img.onload = imageLoaded; 
+};
+
+
+function drawPoints(view, pts = null) {
+   if ( !pts ) { pts = points; } 
+   for (i in pts) {
+      if (pts[i]) {
+         pts[i].draw(view);
+      }
+   }
+   return;
+}
+
+
+function redraw() {
+	view.drawImage();
+   drawPoints(view);
+   drawObjs();
+   make_OT();
+}
+
+
+
+function wheel(event) {
+   var [xi, yi] = view.toImgXY([event.offsetX, event.offsetY]); 
+   var zoom = view.zoom;
+
+	if (event.wheelDelta < 0 && zoom > 0.05) {
+		//zoom = view.zoom * 0.95;
+		zoom = view.zoom * (event.wheelDelta/500 +1);
+      if ( zoom< 0.05 ) { zoom= 0.05 };
+	}
+	else if (event.wheelDelta > 0 && zoom< 10) {
+		//zoom = view.zoom * 1.05;
+		zoom = view.zoom * (event.wheelDelta/500 +1);
+      if ( zoom > 10 ) { zoom  = 10 };
+	}
+   view.setZoom(zoom);
+   view.setCenter([xi,yi],[event.offsetX, event.offsetY]);
+   redraw();
+	event.preventDefault();
+}
+
+function findProxPoint([x,y]) {
+   var prox = null;
+   var prox_dist = 100;
+   for (i in points) {
+      if (points[i]) {
+         var [px,py] = points[i].toViewXY(view);
+         var dist = (px-x)**2 + (py-y)**2;
+         if (dist < 100 && dist < prox_dist) {
+            prox = points[i];
+            prox_dist = dist;
+         }
+      }
+   }
+   return prox;
+}
+
+function mouse_move(event) {
+	if (mouse_down && !mode_params.point ) {
+      mouse_moved=true;
+      view.move(event.offsetX - oldx, event.offsetY - oldy);
+		redraw();
+	}
+   else if (mouse_down && mode_params.point) {
+      var x = (event.offsetX - oldx) / view.zoom;
+      var y = (event.offsetY - oldy) / view.zoom;
+      mode_params.point.move(x,y);
+      redraw();
+   }
+   else if (!mouse_down && mode != modes.addPoint) {
+      if (mode_params.point) {
+         mode_params.point.style=mode_params.point.default_style;
+         mode_params.point.draw(view);
+         mode_params.point = null;
+      }
+      var prox = findProxPoint([event.offsetX, event.offsetY]);
+      if (prox) {
+         prox.style="red";
+         mode_params.point = prox;
+         mode_params.point.draw(view);
+      }
+   }
+}
+
+function click(event) {
+   if (mouse_moved) {
+     view.stopMove(); 
+   }
+   else {
+      if ( mode == modes.addPoint ) {
+         mode_params.points[mode_params.name] = new Point(view.toImgXY([event.offsetX, event.offsetY]));
+         try {
+            document.querySelector(`#${mode_params.name}`).setAttribute('class','cmdOn');
+         }
+         catch {}
+         addPoint(mode_params.points);
+      }
+   }
+
+   mouse_moved=false;
+   mouse_down=false;
+   if (mode_params.point) {updateObjs("pre")};
+   redraw();
+}
+
+function deg2rad(deg) {
+   return deg*Math.PI/180;
+}
+
+function angle_norm(deg) {
+   deg = Math.abs(deg);
+   return (deg < 180) ? deg : 360 - deg;
+}
+
+function make_OT() {
+   var pts = points;
+   ctx1.reset();
+   ctx2.reset();
+   ctx1.drawImage(img,0,0);
+   
+   if ( Object.keys(osteotomies).length ) {
+      if (hip_autorotate.checked) {
+         osteotomies.hip = new HipRotation(points, objs.ML.angle_deg);
+      }
+
+      for ( i in osteotomies ) {
+         var o = osteotomies[i];
+         make_bbox(points);
+         o.update();
+         ctx2.setTransform(o.DOMMatrix);
+         ctx2.drawImage(canvas1,0,0);
+         ctx1.save();
+         ctx1.fill(o.path);
+         ctx1.clip(o.getTransformedPath(ctx1));
+         ctx1.drawImage(canvas2,0,0);
+         ctx1.restore();
+         points = o.transformPoints( points, ctx1 );
+      }
+      view_out.drawImage(canvas1);
+      updateObjs("post");
+      objs.ML.draw(view_out);
+
+      points = pts;
+      updateObjs("pre");
+      delete osteotomies.hip;
+   }
+
+}
+
+
+function imageLoaded() {
+   canvas1 = new OffscreenCanvas(img.width, img.height);
+   ctx1 = canvas1.getContext("2d");
+   canvas2 = new OffscreenCanvas(img.width, img.height);
+   ctx2 = canvas2.getContext("2d");
+
+   canvas.addEventListener("wheel",wheel);
+   canvas.addEventListener("mousemove", mouse_move);
+   canvas.addEventListener("click", click);
+   canvas.addEventListener("mousedown", (e) => { [oldx, oldy] = [e.offsetX, e.offsetY]; mouse_down = true; if (mode_params.point) {mode_params.point.startMove();} else {view.startMove();} } );
+
+   view = new View(canvas,img);
+   view_out = new View(canvas_out,img);
+
+   mode_params.onfinish = refPointsSet;
+   addPoint(points);
+   redraw();
+}
+
+canvas.width=document.querySelector('#div_view').clientWidth / 2;
+canvas.height=window.innerHeight-50;
+canvas_out.width=document.querySelector('#div_view').clientWidth / 2;
+canvas_out.height=window.innerHeight-50;
+
+
+</script>
+
+
+</body>
+</html>
