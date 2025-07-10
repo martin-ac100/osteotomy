@@ -31,7 +31,7 @@
                <table width="100%" class="myTable">
                   <tr><td>side: <output id="pre_side">N/A</output><output id="post_side" hidden="true"></output></td></tr>
                   <tr><td>mTFA: <output id="pre_mTFA">N/A</output> <output id="pre_varus_valgus"></output></td><td>mTFA: <output id="post_mTFA">N/A</output> <output id="post_varus_valgus"></output></td></tr>
-                  <tr><td>Fujisawa: <output id="pre_Fujisawa">N/A</output></td><td>Fujisawa: <output id="post_Fujisawa">N/A</output></td></tr>
+                  <tr><td>Mikulicz: <output id="pre_Mikulicz">N/A</output></td><td>Mikulicz: <output id="post_Mikulicz">N/A</output></td></tr>
                   <tr><td>mLDFA: <output id="pre_mLDFA">N/A</output></td><td>mLDFA: <output id="post_mLDFA">N/A</output></td></tr>
                   <tr><td>mMPTA: <output id="pre_mMPTA">N/A</output></td><td>mMPTA: <output id="post_mMPTA">N/A</output></td></tr>
                   <tr><td>JLCA: <output id="pre_JLCA">N/A</output></td><td>JLCA: <output id="post_JLCA">N/A</output></td></tr>
@@ -226,7 +226,7 @@ function updateObjs(prefix) {
       if (angles.JLCA > 180) {angles.JLCA = 360 - angles.JLCA;}
 
       [ x, y ] = objs.ML.intersection( objs.TJL );
-      angles.Fujisawa = Math.round( 100 * (x - points.MTC.x) / (points.LTC.x - points.MTC.x) ) + "%";
+      angles.Mikulicz = Math.round( 100 * (x - points.MTC.x) / (points.LTC.x - points.MTC.x) ) + "%";
 
       for (i in angles) {
          document.querySelector(`#${prefix}_${i}`).value = isNaN(angles[i]) ? angles[i] : Math.round(angles[i]);
@@ -287,7 +287,9 @@ function wheel(event) {
 	}
    view.setZoom(zoom);
    view.setCenter([xi,yi],[event.offsetX, event.offsetY]);
-   redraw();
+	view.drawImage();
+   drawPoints(view);
+   drawObjs();
 	event.preventDefault();
 }
 
@@ -311,7 +313,9 @@ function mouse_move(event) {
 	if (mouse_down && !mode_params.point ) {
       mouse_moved=true;
       view.move(event.offsetX - oldx, event.offsetY - oldy);
-		redraw();
+      view.drawImage();
+      drawPoints(view);
+      drawObjs();
 	}
    else if (mouse_down && mode_params.point) {
       var x = (event.offsetX - oldx) / view.zoom;
