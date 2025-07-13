@@ -128,10 +128,10 @@ class Line {
    #len;
    #angle;
    #angle_deg;
-   #a;
-   #normalized;
+   #x;
+   #y;
    #p1;
-   #p2
+   #p2;
 
    constructor(p1,p2,style="yellow") {
       this.#p1 = p1;
@@ -145,24 +145,25 @@ class Line {
       var p1,p2;
       [p1, p2] = [this.#p1, this.#p2];
       this.#len = Math.sqrt( (p2.x - p1.x)**2 + (p2.y - p1.y)**2 );
-      this.#normalized = { x: (p2.x - p1.x) / this.#len, y: (p1.y - p2.y) / this.#len };
-      this.#angle =  Math.atan2( p1.y - p2.y , p2.x - p1.x );
-      this.#angle_deg = this.#angle * 180 / Math.PI; 
-      if (this.#normalized.x < 0) {
-         this.#angle = 2*Math.PI + this.#angle;
-      }
-      if (this.#angle > Math.PI) {
-         this.#angle = this.#angle - 2*Math.PI ;
-      }
-      this.#a = (p2.y - p1.y) / (p2.x - p1.x);
+      [ this.#x, this.#y ] = [ (p2.x - p1.x) / this.#len, (p2.y - p1.y) / this.#len ];
+      this.#angle = Math.atan2( this.y , this.x );
+      this.#angle_deg = this.#angle * 180 / Math.PI;
    }
 
    get length() {
       return this.#len 
    }
 
-   get normalized() {
-      return this.#normalized;
+   get xy() {
+      return { x: this.#x, y: this.#y };
+   }
+
+   get x() {
+      return this.#x;
+   }
+
+   get y() {
+      return this.#y;
    }
 
    get angle() {
@@ -173,38 +174,22 @@ class Line {
       return this.#angle_deg; 
    }
 
-   get a() {
-      return this.#a;
-   }
-
-   get b() {
-      return this.#p1.y - (this.#p1.x * this.#a);
-   }
-
    get p1() {
       return this.#p1;
-   }
-
-   set p1(p) {
-      this.#p1 = p;
-      this.update();
    }
 
    get p2() {
       return this.#p2;
    }
 
-   set p2(p) {
-      this.#p2 = p;
-      this.update();
-   }
-
    getY(x) {
-      return this.a * x + this.b;
+      var len = ( x - this.#p1.x ) / this.#x;
+      return this.#p1.y + len * this.#y;
    }
 
    getX(y) {
-      return (y - this.b) / this.a;
+      var len = ( y - this.#p1.y ) / this.#y;
+      return this.#p1.x + len * this.#x;
    }
 
    draw(view) {
@@ -220,11 +205,11 @@ class Line {
    }
    
    intersection(line) {
-      var x;
-      x = (line.b - this.b) / (this.a - line.a);
-      return { x: x, y: this.getY(x) };
+      var k;
+      k = (line.p1.x - this.p1.x)*line.y - (line.p1.y - this.p1.y)*line.x;
+      k = k / ( this.#x * line.y -  this.#y * line.x );
+      return { x: this.p1.x + k * this.#x, y: this.p1.y + k * this.#y};
    }
-   
 }
 
 class Circle {
@@ -638,7 +623,7 @@ class HipRotation extends Osteotomy {
 
    update() {
       this.ML.update();
-      this.#angle = this.ML.angle_deg - this.orig_angle; 
+      this.#angle = this.orig_angle - this.ML.angle_deg; 
       this.DOMMatrix = new DOMMatrix(); 
       this.DOMMatrix.translateSelf( this.hinge.x, this.hinge.y );
       this.DOMMatrix.rotateSelf( this.angle );
