@@ -2,12 +2,17 @@ class View {
 
    #zoom;
 
-   constructor(canvas, img) {
+   constructor(canvas, img, zoom = null) {
       this.canvas = canvas;
       this.ctx = canvas.getContext("2d");
       this.img = img;
-      this.setZoom( canvas.height / img.height );
-      this.setCenter( { x: img.width/2, y: img.height/2 }, { x: this.canvas.width/2, y: this.canvas.height/2 } );
+      if (! zoom) { 
+         this.setZoom( canvas.width / img.width );
+      }
+      else {
+         this.setZoom( zoom );
+      }
+      this.setCenter( [img.width/2, img.height/2], [this.canvas.width/2, this.canvas.height/2] );
    }
 
    get zoom() {
@@ -20,8 +25,8 @@ class View {
       this.height = this.canvas.height / zoom;
    }
 
-   setCenter( pi, pv) {
-      [this.x, this.y] = [ pi.x - pv.x / this.#zoom, pi.y - pv.y / this.#zoom ];
+   setCenter( [xi,yi],[xv,yv] ) {
+      [this.x, this.y] = [ xi - xv / this.#zoom, yi - yv / this.#zoom ];
    }
 
    startMove() {
@@ -35,18 +40,18 @@ class View {
       this.moved=false;
    }
 
-   move(offset) {
+   move(x,y) {
       if (!this.moved) {this.moved=true;this.canvas.style.cursor="grabbing"};
-      this.x = this.old_x - offset.x / this.#zoom;
-      this.y = this.old_y - offset.y / this.#zoom;
+      this.x = this.old_x - x / this.#zoom;
+      this.y = this.old_y - y / this.#zoom;
    }
 
-   imgXY(p) {
-      return { x: this.x + p.x / this.#zoom, y: this.y + p.y / this.#zoom };
+   toImgXY([x,y]) {
+      return [ this.x + x / this.#zoom, this.y + y / this.#zoom ];
    }
 
-   viewXY(p) {
-      return { x: (p.x - this.x) * this.#zoom, y: (p.y - this.y) * this.#zoom };
+   toViewXY([x,y]) {
+      return [ (x - this.x) * this.#zoom, (y - this.y) * this.#zoom ];
    }
 
    drawImage(img = this.img) {
@@ -54,38 +59,40 @@ class View {
       this.ctx.drawImage(img, this.x, this.y, this.width, this.height, 0, 0, this.canvas.width, this.canvas.height);
    }
 
-   savePoints(points) {
-      this.points = {};
-      for ( i in points ) {
-         if ( points[i] ) {
-            this.points[i] = points[i].xy;
-         }
-      }
-   }
-
-   restorePoints(points) {
-      for ( i in this.points ) {
-         points[i].xy = this.points[i];
-      }
-   }
-
 }
 
 
 class Point {
 
-   constructor(x, y, style = "yellow" ) {
-      [ this.x, this.y ] = [ x, y ];
+   constructor([x,y], style = "yellow" ) {
+      this.setXY([x,y]);
       this.style = style;
       this.default_style = style;
    }
 
-   get xy() {
-      return { x: this.x, y: this.y};
+
+   toViewXY(view=null) {
+      if (view) {
+         return [ (this.x - view.x) * view.zoom, (this.y - view.y) * view.zoom ];
+      }
+      else {
+         return [this.x, this.y];
+      }
    }
 
-   set xy(p) {
-     [ this.x, this.y ] = [ p.x, p.y ];
+   getDict(view = null) {
+      if (view) {
+         return {x: (this.x - view.x) * view.zoom, y: (this.y - view.y) * view.zoom };
+      }
+      else {
+         return { x: this.x, y: this.y};
+      }
+   }
+
+
+   setXY([x,y]) {
+      this.x = x;
+      this.y = y;
    }
 
    startMove() {
@@ -93,12 +100,12 @@ class Point {
       this.old_y = this.y;
    }
 
-   move(offset) {
-      this.x = this.old_x + offset.x;
-      this.y = this.old_y + offset.y;
+   move(x,y) {
+      this.x = this.old_x + x;
+      this.y = this.old_y + y;
    }
 
-   set objects(obj) {
+   setObjects([objects]) {
       this.objects = objects;
    }
 
@@ -106,19 +113,35 @@ class Point {
       return this.objects;
    }
 
-   getDistance(p) {
-      return Math.sqrt( (this.x-p.x)**2 + (this.y-p.y)**2 );
+   get xy() {
+      return [this.x,this.y];
    }
 
-   getDistance2(p) {
-      return (this.x-p.x)**2 + (this.y-p.y)**2;
+   getDistance([x,y]) {
+      return Math.sqrt( (this.x-x)**2 + (this.y-y)**2 );
+   }
+
+   getDistance2([x,y]) {
+      return (this.x-x)**2 + (this.y-y)**2;
+   }
+
+   rotate([cx,cy], angle) {
+      var x,y;
+      var new_x, new_y;
+      const vx = [ Math.cos(angle), Math.sin(angle) ];
+      const vy = [ -vx[1],vx[0] ];
+      x = this.x - cx;
+      y = this.y - cy;
+      new_x = x * vx[0] + y * vy[0] + cx;
+      new_y = x * vx[1] + y * vy[1] + cy;
+      return new Point([new_x, new_y]);
    }
 
    draw(view) {
-      var p;
-      p = view.viewXY(this);
+      var x,y;
+      [x,y] = view.toViewXY([this.x, this.y]);
       view.ctx.strokeStyle = this.style;
-      view.ctx.strokeRect(p.x-3,p.y-3,6,6);
+      view.ctx.strokeRect(x-3,y-3,6,6);
    }
 
 }
@@ -128,8 +151,8 @@ class Line {
    #len;
    #angle;
    #angle_deg;
-   #a;
-   #normalized;
+   #x;
+   #y;
    #p1;
    #p2
 
@@ -145,24 +168,32 @@ class Line {
       var p1,p2;
       [p1, p2] = [this.#p1, this.#p2];
       this.#len = Math.sqrt( (p2.x - p1.x)**2 + (p2.y - p1.y)**2 );
-      this.#normalized = { x: (p2.x - p1.x) / this.#len, y: (p1.y - p2.y) / this.#len };
-      this.#angle =  Math.atan2( p1.y - p2.y , p2.x - p1.x );
-      this.#angle_deg = this.#angle * 180 / Math.PI; 
-      if (this.#normalized.x < 0) {
-         this.#angle = 2*Math.PI + this.#angle;
+      [ this.#x, this.#y ] = [ (p2.x - p1.x) / this.#len, (p2.y - p1.y) / this.#len ];
+     
+      if ( this.y >= 0 ) {
+         this.#angle = ( this.#x >= 0 ) ? Math.atan2( p2.y - p1.y , p2.x - p1.x ) : Math.PI + Math.atan2( p2.y - p1.y , p2.x - p1.x );
       }
-      if (this.#angle > Math.PI) {
-         this.#angle = this.#angle - 2*Math.PI ;
+      else {
+         this.#angle = ( this.#x >= 0 ) ? Math.atan2( p2.y - p1.y , p2.x - p1.x ) : -Math.PI + Math.atan2( p2.y - p1.y , p2.x - p1.x );
       }
-      this.#a = (p2.y - p1.y) / (p2.x - p1.x);
+
+      this.#angle_deg = this.#angle * 180 / Math.PI;
    }
 
    get length() {
       return this.#len 
    }
 
-   get normalized() {
-      return this.#normalized;
+   get xy() {
+      return [ this.#x, this.#y ];
+   }
+
+   get x() {
+      return this.#x;
+   }
+
+   get y() {
+      return this.#y;
    }
 
    get angle() {
@@ -173,30 +204,8 @@ class Line {
       return this.#angle_deg; 
    }
 
-   get a() {
-      return this.#a;
-   }
-
-   get b() {
-      return this.#p1.y - (this.#p1.x * this.#a);
-   }
-
    get p1() {
       return this.#p1;
-   }
-
-   set p1(p) {
-      this.#p1 = p;
-      this.update();
-   }
-
-   get p2() {
-      return this.#p2;
-   }
-
-   set p2(p) {
-      this.#p2 = p;
-      this.update();
    }
 
    getY(x) {
@@ -208,22 +217,24 @@ class Line {
    }
 
    draw(view) {
-      var p1,p2;
-      p1 = view.viewXY(this.#p1);
-      p2 = view.viewXY(this.#p2);
+      var x1,y1,x2,y2;
+      [x1,y1] = view.toViewXY(this.#p1.xy);
+      [x2,y2] = view.toViewXY(this.#p2.xy);
       view.ctx.strokeStyle = this.style;
       view.ctx.beginPath();
-      view.ctx.moveTo(p1.x,p1.y)
-      view.ctx.lineTo(p2.x,p2.y);
+      view.ctx.moveTo(x1,y1)
+      view.ctx.lineTo(x2,y2);
       view.ctx.closePath();
       view.ctx.stroke();
    }
    
    intersection(line) {
-      var x;
-      x = (line.b - this.b) / (this.a - line.a);
-      return { x: x, y: this.getY(x) };
+      var k;
+      k = (line.p1.x - this.p1.x)*line.y - (line.p1.y - this.p1.y)*line.x;
+      k = k / ( this.#x * line.y -  this.#y * line.x );
+      return [ this.p1.x + k * this.#x, this.p1.y + k * this.#y ];
    }
+
    
 }
 
@@ -235,18 +246,15 @@ class Circle {
       this.style = style;
    }
 
-   update() {
-   }
-
    draw(view) {
-      var pc, pr, radius;
-      pc = view.viewXY(this.center);
-      pr = view.viewXY(this.rim);
-      radius = this.center.getDistance(this.rim) * view.zoom;
+      var cx, cy, rx, ry, radius;
+      [cx,cy] = view.toViewXY(this.center.xy);
+      [rx,ry] = view.toViewXY(this.rim.xy);
+      radius = this.center.getDistance(this.rim.xy) * view.zoom;
       view.ctx.strokeStyle=this.style;
       view.ctx.beginPath();
-      view.ctx.moveTo(pc.x,pc.y);
-      view.ctx.arc(pc.x,pc.y,radius,0, 6.3);
+      view.ctx.moveTo(cx,cy);
+      view.ctx.arc(cx,cy,radius,0, 6.3);
       view.ctx.stroke();
    }
 }
@@ -284,10 +292,10 @@ class Osteotomy {
    update() {
       this.#type_site = ( this.hinge.y > this.points.LTC.y ) > 0 ? "proximal tibial" : "distal femoral"; 
       this.#DOMMatrix = new DOMMatrix(); 
-
-      this.#DOMMatrix.translateSelf( this.hinge.x, this.hinge.y );
+      var [x,y] = this.hinge.xy; 
+      this.#DOMMatrix.translateSelf( x, y );
       this.#DOMMatrix.rotateSelf( this.angle * this.#angle_dir );
-      this.#DOMMatrix.translateSelf( -this.hinge.x, -this.hinge.y );
+      this.#DOMMatrix.translateSelf( -x, -y );
 
    }
 
@@ -307,38 +315,29 @@ class Osteotomy {
    }
 
    getTransformedPath(ctx) {
-      this.transformPoints(this.bbox, ctx);
-      p = points2Path(this.bbox);
+      var p = this.transformPoints(this.bbox, ctx);
+      p = points2Path(p);
       return p;
    }
 
    transformPoints(points, ctx) {
+      var new_points = {};
       var p;
       for ( i in points ) {
-         p = points[i];
-         if ( p ) {
-            if ( ctx.isPointInPath( this.path, p.x, p.y ) ) {
-              p.xy = this.#DOMMatrix.transformPoint( p );
+         if ( points[i] ) {
+            if ( ctx.isPointInPath( this.path, points[i].x, points[i].y ) ) {
+              p = this.#DOMMatrix.transformPoint( points[i] );
             }
+            else {
+               p = { x: points[i].x, y: points[i].y };
+            }
+
+            new_points[i] = new Point([p.x, p.y]);
          }
       }
+      return new_points;
    }
-
-   doOsteotomy() {
-      this.update();
-      ctx2.setTransform(this.DOMMatrix);
-      ctx2.drawImage(canvas1,0,0);
-      ctx1.save();
-      ctx1.fill(this.path);
-      ctx1.clip(this.getTransformedPath(ctx1));
-      ctx1.drawImage(canvas2,0,0);
-      ctx1.restore();
-      this.transformPoints( points, ctx1 );
-      //this.transformPoints( bbox, ctx1 );
-      for ( i in objs) {
-         objs[i].update();
-      }
-   }
+   
 
 }
 
@@ -367,6 +366,7 @@ class OWOT extends Osteotomy {
 
 
    delete() {
+      console.log(`deleting ${this.id}`);
       delete points[`${this.id}_H`];
       delete points[`${this.id}_P1`];
       delete osteotomies[`${this.id}`];
@@ -376,37 +376,33 @@ class OWOT extends Osteotomy {
    }
 
    update() {
-      var p
       this.angle_dir = ( this.hinge.x - this.p1.x ) > 0 ? -1 : 1;
       super.update();
+      this.p2 = this.p1.rotate(this.hinge.xy, deg2rad(this.angle) * this.angle_dir);
       this.line.update();
-      var p2 = this.DOMMatrix.transformPoint( this.p1 );
-      this.p2 = new Point( p2.x, p2.y );
-      p = this.line.intersection( new Line( bbox.LPT, bbox.LDT ) );
-      this.bbox["LP"] = new Point( p.x, p.y );
+      this.bbox["LP"] = new Point( this.line.intersection( new Line( bbox.LPT, bbox.LDT ) ) );
       this.bbox["LD"] = bbox.LDT;
       this.bbox["MD"] = bbox.MDT;
-      p = this.line.intersection( new Line( bbox.MPT, bbox.MDT ) );
-      this.bbox["MP"] = new Point( p.x, p.y );
+      this.bbox["MP"] = new Point( this.line.intersection( new Line( bbox.MPT, bbox.MDT ) ) );
       this.path = points2Path(this.bbox);
       if (objs.scale && this.ot_len) {
          this.ot_len.value = Math.round(objs.scale.toMilimeters(this.line.length));
-         this.wedge_len.value = Math.round(objs.scale.toMilimeters(this.p1.getDistance(this.p2) ) );
+         this.wedge_len.value = Math.round(objs.scale.toMilimeters(new Line(this.p1, this.p2).length));
       }
       
    }
 
    draw(view) {
       if ( this.p1 && this.p2 && this.hinge ) {
-         var h,p;
-         p = view.viewXY(this.p1);
-         h = view.viewXY(this.hinge);
+         var x1,y1,x2,y2;
+         [x1,y1] = view.toViewXY(this.p1.xy);
+         [x2,y2] = view.toViewXY(this.hinge.xy);
          view.ctx.strokeStyle = "violet";
          view.ctx.beginPath();
-         view.ctx.moveTo(p.x,p.y)
-         view.ctx.lineTo(h.x,h.y);
-         p = view.viewXY(this.p2);
-         view.ctx.lineTo(p.x,p.y);
+         view.ctx.moveTo(x1,y1)
+         view.ctx.lineTo(x2,y2);
+         [x1,y1] = view.toViewXY(this.p2.xy);
+         view.ctx.lineTo(x1,y1);
          view.ctx.stroke();
          view.ctx.closePath();
       }
@@ -420,7 +416,6 @@ class OWOT extends Osteotomy {
       document.querySelector("#div_angles").appendChild(this.createNode());
       document.querySelector("#OWOT").setAttribute("class","cmdOn");
       osteotomies[this.id] = this;
-      objs[this.id] = this;
    }
 
    createNode() {
@@ -486,21 +481,15 @@ class CWOT extends Osteotomy {
 
    set angle(angle) {
       this.#angle = angle;
-      super.update();
-      var p2 = this.DOMMatrix.transformPoint( this.p1 );
-      this.p2.xy = this.wedge_line.intersection( new Line(this.hinge, p2) );
-      this.line.update();
-      this.line2.update();
-      this.wedge_line.update();
-      if (objs.scale && this.ot_len1) {
-         this.ot_len1.value = Math.round(objs.scale.toMilimeters(this.line.length));
-         this.ot_len2.value = Math.round(objs.scale.toMilimeters(this.line2.length));
-         this.wedge_len.value = Math.round(objs.scale.toMilimeters( this.wedge_line.length ) );
-      }
+      var p = this.p1.rotate(this.hinge.xy, deg2rad(this.#angle * this.angle_dir) );
+      this.p2.setXY(this.wedge_line.intersection( new Line(this.hinge, p) ) );
+      this.update();
+      
    }
 
 
    delete() {
+      console.log(`deleting ${this.id}`);
       delete points[`${this.id}_H`];
       delete points[`${this.id}_P1`];
       delete points[`${this.id}_P2`];
@@ -522,12 +511,10 @@ class CWOT extends Osteotomy {
       this.#angle = angle_norm( this.line2.angle_deg - this.line.angle_deg );
       this.range.value = Math.round(this.#angle);
       this.out.textContent = Math.round(this.#angle) + " deg";
-      var p = this.line.intersection( new Line( bbox.LPT, bbox.LDT ));
-      this.bbox["LP"] = new Point( p.x, p.y );
+      this.bbox["LP"] = new Point( this.line.intersection( new Line( bbox.LPT, bbox.LDT ) ) );
       this.bbox["LD"] = bbox.LDT;
       this.bbox["MD"] = bbox.MDT;
-      p = this.line.intersection( new Line( bbox.MPT, bbox.MDT ));
-      this.bbox["MP"] = new Point( p.x, p.y );
+      this.bbox["MP"] = new Point( this.line.intersection( new Line( bbox.MPT, bbox.MDT ) ) );
       this.path = points2Path(this.bbox);
       if (objs.scale && this.ot_len1) {
          this.ot_len1.value = Math.round(objs.scale.toMilimeters(this.line.length));
@@ -552,21 +539,20 @@ class CWOT extends Osteotomy {
       document.querySelector("#CWOT").setAttribute("class","cmdOn");
       this.update();
       osteotomies[this.id] = this;
-      objs[this.id] = this;
    }
 
    draw(view) {
       if ( this.p1 && this.p2 && this.hinge ) {
-         var p1,p2;
-         p1 = view.viewXY(this.p1);
-         p2 = view.viewXY(this.hinge);
+         var x1,y1,x2,y2;
+         [x1,y1] = view.toViewXY(this.p1.xy);
+         [x2,y2] = view.toViewXY(this.hinge.xy);
          var default_Fill = view.ctx.fillStyle;
          view.ctx.beginPath();
          view.ctx.fillStyle = "tomato";
-         view.ctx.moveTo(p1.x,p1.y)
-         view.ctx.lineTo(p2.x,p2.y);
-         p2 = view.viewXY(this.p2);
-         view.ctx.lineTo(p2.x,p2.y);
+         view.ctx.moveTo(x1,y1)
+         view.ctx.lineTo(x2,y2);
+         [x2,y2] = view.toViewXY(this.p2.xy);
+         view.ctx.lineTo(x2,y2);
          view.ctx.fill();
          view.ctx.closePath();
          view.ctx.fillStyle = default_Fill;
@@ -619,7 +605,6 @@ class CWOT extends Osteotomy {
       return this.div;
    }
 
-
 }
 
 class HipRotation extends Osteotomy {
@@ -630,19 +615,19 @@ class HipRotation extends Osteotomy {
    constructor(points, orig_angle) {
       super(points,"HIP");
       this.hinge = points.FHC;
-      this.ML = new Line( points.FHC, points.DTC );
       this.#angle = 0;
       this.orig_angle = orig_angle;
       this.update();
    }
 
    update() {
-      this.ML.update();
-      this.#angle = this.ML.angle_deg - this.orig_angle; 
+      var new_ML = new Line(points.FHC, points.DTC);
+      this.#angle = new_ML.angle_deg - this.orig_angle; 
       this.DOMMatrix = new DOMMatrix(); 
-      this.DOMMatrix.translateSelf( this.hinge.x, this.hinge.y );
+      var [x,y] = this.hinge.xy; 
+      this.DOMMatrix.translateSelf( x, y );
       this.DOMMatrix.rotateSelf( this.angle );
-      this.DOMMatrix.translateSelf( -this.hinge.x, -this.hinge.y );
+      this.DOMMatrix.translateSelf( -x, -y );
       
       this.bbox = bbox;
       this.path = points2Path(this.bbox);
@@ -700,13 +685,13 @@ class Scale {
 
    draw(view) {
       if (this.p1 && this.p2) {
-         var p1,p2
-         p1 = view.viewXY(this.p1);
-         p2 = view.viewXY(this.p2);
+         var x1,y1,x2,y2;
+         [x1,y1] = view.toViewXY(this.p1.xy);
+         [x2,y2] = view.toViewXY(this.p2.xy);
          view.ctx.strokeStyle = "cyan";
          view.ctx.beginPath();
-         view.ctx.moveTo(p1.x,p1.y)
-         view.ctx.lineTo(p2.x,p2.y);
+         view.ctx.moveTo(x1,y1)
+         view.ctx.lineTo(x2,y2);
          view.ctx.closePath();
          view.ctx.stroke();
       }
