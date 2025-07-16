@@ -9,6 +9,8 @@ const canvas_out = document.querySelector("#canvas_out");
 const cmdOWOT = document.querySelector("#OWOT");
 const cmdCWOT = document.querySelector("#CWOT");
 const cmdScale = document.querySelector("#SCALE");
+const limbLengthElement = document.querySelector("#limb_length");
+const limbLengthValElement = document.querySelector("#limb_length_change_value");
 const hip_autorotate = document.querySelector("#hip_autorotate");
 var canvas2;
 var view;
@@ -19,7 +21,7 @@ mouse_moved = false;
 mouse_down = false;
 
 var points = {FHC:null, FHR: null, LFC:null, MFC:null, LTC:null, MTC:null, DTC: null};
-var points_nonmovable = {};
+var points_fixed = {};
 var bbox; 
 var angles= {mTFA: null, mLDFA: null, mMPTA: null, varus_valgus: null, side: null};
 var objs = {};
@@ -31,6 +33,10 @@ function addOWOT(event) {
    mode_params.obj = OT;
    mode_params.onfinish = OT.setup.bind(OT);
    cmdOWOT.setAttribute("class","cmdSelect");
+   cmdOWOT.disabled=true;
+   cmdCWOT.disabled=true;
+   cmdScale.disabled=true;
+
    addPoint(points);
 }
 
@@ -39,6 +45,10 @@ function addCWOT(event) {
    mode_params.obj = OT;
    mode_params.onfinish = OT.setup.bind(OT);
    cmdCWOT.setAttribute("class","cmdSelect");
+   cmdOWOT.disabled=true;
+   cmdCWOT.disabled=true;
+   cmdScale.disabled=true;
+
    addPoint(points);
 }
 
@@ -48,7 +58,11 @@ function setScale(event) {
    objs.scale = scale;
    mode_params.onfinish = scale.setup.bind(scale);
    cmdScale.setAttribute("class","cmdSelect");
-   addPoint(points);
+   cmdOWOT.disabled=true;
+   cmdCWOT.disabled=true;
+   cmdScale.disabled=true;
+   
+   addPoint(points_fixed);
 }
 
 function drawObjs(v=view) {
@@ -140,6 +154,9 @@ function addPoint(points) {
       mode=modes.default;
       canvas.style.cursor="default";
       mode_params.onfinish();
+      cmdOWOT.disabled=false;
+      cmdCWOT.disabled=false;
+      cmdScale.disabled=false;
       updateObjs("pre");
       drawObjs();
    }
@@ -230,8 +247,7 @@ function loadFile(event) {
 };
 
 
-function drawPoints(view, pts = null) {
-   if ( !pts ) { pts = points; } 
+function drawPoints(view, pts) {
    for (i in pts) {
       if (pts[i]) {
          pts[i].draw(view);
@@ -243,7 +259,8 @@ function drawPoints(view, pts = null) {
 
 function redraw() {
 	view.drawImage();
-   drawPoints(view);
+   drawPoints(view,points);
+   drawPoints(view,points_fixed);
    drawObjs();
    make_OT();
 }
@@ -268,7 +285,8 @@ function wheel(event) {
    view.setZoom(zoom);
    view.setCenter( p ,{ x: event.offsetX, y: event.offsetY } );
 	view.drawImage();
-   drawPoints(view);
+   drawPoints(view, points);
+   drawPoints(view, points_fixed);
    drawObjs();
 	event.preventDefault();
 }
@@ -282,6 +300,16 @@ function findProxPoint(p) {
          var dist = (p.x-o.x)**2 + (p.y-o.y)**2;
          if (dist < 100 && dist < prox_dist) {
             prox = points[i];
+            prox_dist = dist;
+         }
+      }
+   }
+   for (i in points_fixed) {
+      if (points_fixed[i]) {
+         var o = view.viewXY( points_fixed[i] ); 
+         var dist = (p.x-o.x)**2 + (p.y-o.y)**2;
+         if (dist < 100 && dist < prox_dist) {
+            prox = points_fixed[i];
             prox_dist = dist;
          }
       }
@@ -303,6 +331,7 @@ function mouse_move(event) {
       mode_params.point.move( { x: x, y: y} );
       view.drawImage();
       drawPoints(view);
+      drawObjs();
    }
    else if (!mouse_down && mode != modes.addPoint) {
       if (mode_params.point) {
@@ -357,6 +386,17 @@ function make_OT() {
    ctx2.reset();
    ctx1.drawImage(img,0,0);
    
+   var pre_OT_limb_len
+
+   if ( objs.scale ) {
+      pre_OT_limb_len = objs.scale.toMilimeters( objs.ML.length );
+      limbLengthElement.hidden = false;
+   }
+   else {
+      pre_OT_limb_len = null;
+      limbLengthElement.hidden = true;
+   }
+
    if ( Object.keys(osteotomies).length ) {
       hip_rotation.orig_angle = objs.ML.angle_deg;
 
@@ -373,6 +413,14 @@ function make_OT() {
       objs.FJL.draw(view_out);
       objs.TJL.draw(view_out);
       objs.ML.draw(view_out);
+
+      if ( pre_OT_limb_len ) {
+         var change = Math.round( objs.scale.toMilimeters( objs.ML.length ) - pre_OT_limb_len );
+         if ( change > 0 ) {
+            change = "+" + change;
+         }
+         limbLengthValElement.value = change;
+      }
 
       view.restorePoints(points);
       make_bbox(points);
@@ -394,6 +442,7 @@ function imageLoaded() {
    canvas.addEventListener("mousedown", (e) => { [oldx, oldy] = [e.offsetX, e.offsetY]; mouse_down = true; if (mode_params.point) {mode_params.point.startMove();} else {view.startMove();} } );
 
    view = new View(canvas,img);
+   view.ctx.lineWidth=2;
    view_out = new View(canvas_out,img, canvas_out.height / img.height);
 
    mode_params.onfinish = refPointsSet;

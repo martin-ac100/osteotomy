@@ -24,6 +24,10 @@
   background-color: rgb(255 0 0 / 100%);
 }
 
+.cmdOff:disabled {
+  background-color: rgb(255 0 0 / 20%);
+}
+
 .cmdOff:active {
   box-shadow:
     inset -2px -2px 3px rgb(255 255 255 / 60%),
@@ -89,6 +93,10 @@
   background-color: rgb(0 255 0 / 100%);
 }
 
+.cmdOn:disabled {
+  background-color: rgb(0 255 0 / 20%);
+}
+
 .cmdOn:active {
   box-shadow:
     inset -2px -2px 3px rgb(255 255 255 / 60%),
@@ -102,7 +110,7 @@
   display: grid;
   grid-template-columns: 4fr 300px;
   background-color: dodgerblue;
-  padding: 5;
+  padding: 4;
 }
 
 .container > div {

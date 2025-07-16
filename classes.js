@@ -413,14 +413,14 @@ class OWOT extends Osteotomy {
       this.div.id = `${this.id}_div`;
       var out = document.createElement("output");
       out.id = `${this.id}_output`;
-      out.textContent = "5 deg";
+      out.textContent = "7.0 deg";
       var range = document.createElement("input");
       range.id = `${this.id}_range`;
       range.type = "range";
       range.min = 0;
       range.max = 15;
-      range.step = 1;
-      range.value = 5;
+      range.step = 0.1;
+      range.value = 7;
       range.addEventListener("input", (event) => { out.textContent = `${range.value} deg`; this.angle = range.value;redraw()});
       var del = document.createElement("input");
       del.type = "submit";
@@ -437,8 +437,9 @@ class OWOT extends Osteotomy {
       this.div.appendChild( document.createTextNode(`${this.type_site} ${this.type_wedge} `) );
       this.div.appendChild(del);
       this.div.appendChild( document.createElement("br") );
-      this.div.appendChild(out);
       this.div.appendChild(range);
+      this.div.appendChild( document.createElement("br") );
+      this.div.appendChild(out);
       this.div.appendChild( document.createElement("br") );
       this.div.appendChild( document.createTextNode("arm length (mm): ") );
       this.div.appendChild( ot_len );
@@ -505,8 +506,8 @@ class CWOT extends Osteotomy {
       this.line2.update();
       this.wedge_line.update();
       this.#angle = angle_norm( this.line2.angle_deg - this.line.angle_deg );
-      this.range.value = Math.round(this.#angle);
-      this.out.textContent = Math.round(this.#angle) + " deg";
+      this.range.value = this.#angle.toFixed(1);
+      this.out.textContent = this.range.value + " deg";
       var p = this.line.intersection( new Line( bbox.LPT, bbox.LDT ));
       this.bbox["LP"] = new Point( p.x, p.y );
       this.bbox["LD"] = bbox.LDT;
@@ -571,7 +572,6 @@ class CWOT extends Osteotomy {
       range.min = 0.1;
       range.max = 15;
       range.step = 0.1;
-      range.value = 5;
       range.addEventListener("input", (event) => { out.textContent = `${range.value} deg`; this.angle = range.value;redraw()});
       var del = document.createElement("input");
       del.type = "submit";
@@ -590,8 +590,9 @@ class CWOT extends Osteotomy {
       this.div.appendChild( document.createTextNode(`${this.type_site} ${this.type_wedge} `) );
       this.div.appendChild(del);
       this.div.appendChild( document.createElement("br") );
-      this.div.appendChild(out);
       this.div.appendChild(range);
+      this.div.appendChild( document.createElement("br") );
+      this.div.appendChild(out);
       this.div.appendChild( document.createElement("br") );
       this.div.appendChild( document.createTextNode("prox. arm length (mm): ") );
       this.div.appendChild( ot_len2 );
@@ -649,8 +650,8 @@ class Scale {
    #scale;
 
    constructor(points) {
-      points.scale_p1 = null;
-      points.scale_p2 = null;
+      points_fixed.scale_p1 = null;
+      points_fixed.scale_p2 = null;
       this.dist_mm = null;
    }
 
@@ -663,8 +664,8 @@ class Scale {
    }
 
    setup() {
-      this.p1 = points.scale_p1;
-      this.p2 = points.scale_p2;
+      this.p1 = points_fixed.scale_p1;
+      this.p2 = points_fixed.scale_p2;
       this.line = new Line(this.p1, this.p2)
       this.dist_pix = this.line.length;
       document.querySelector("#div_angles").appendChild(this.createNode());
@@ -698,10 +699,11 @@ class Scale {
    }
 
    delete() {
-      delete points.scale_p1;
-      delete points.scale_p2;
+      delete points_fixed.scale_p1;
+      delete points_fixed.scale_p2;
       delete objs.scale;
       this.div.remove();
+      document.querySelector("#SCALE").setAttribute("class","cmdOff");
    }
 
     
