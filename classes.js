@@ -335,6 +335,8 @@ class OWOT extends Osteotomy {
       super(points, "OW");
       points[`${this.id}_H`] = null;
       points[`${this.id}_P1`] = null;
+      hints[`${this.id}_H`] = "select the hinge of the osteotomy";
+      hints[`${this.id}_P1`] = "select the saw blade entry point at the opposite cortex";
       this.hinge = null;
       this.p1 = null;
       this.p2 = null;
@@ -354,6 +356,8 @@ class OWOT extends Osteotomy {
    delete() {
       delete points[`${this.id}_H`];
       delete points[`${this.id}_P1`];
+      delete hints[`${this.id}_H`];
+      delete hints[`${this.id}_P1`];
       delete osteotomies[`${this.id}`];
       delete objs[`${this.id}`];
       this.div.remove();
@@ -460,6 +464,9 @@ class CWOT extends Osteotomy {
       points[`${this.id}_H`] = null;
       points[`${this.id}_P1`] = null;
       points[`${this.id}_P2`] = null;
+      hints[`${this.id}_H`] = "select the hinge of the osteotomy";
+      hints[`${this.id}_P1`] = "select the saw blade entry point at the opposite cortex";
+      hints[`${this.id}_P2`] = "select the second saw blade entry point of the osteotomy";
       this.hinge = null;
       this.p1 = null;
       this.p2 = null;
@@ -490,6 +497,9 @@ class CWOT extends Osteotomy {
       delete points[`${this.id}_H`];
       delete points[`${this.id}_P1`];
       delete points[`${this.id}_P2`];
+      delete hints[`${this.id}_H`];
+      delete hints[`${this.id}_P1`];
+      delete hints[`${this.id}_P2`];
       delete osteotomies[`${this.id}`];
       delete objs[`${this.id}`];
       this.div.remove();

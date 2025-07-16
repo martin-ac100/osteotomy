@@ -5,6 +5,7 @@ var mode = modes.default;
 var mode_params = {};
 
 const canvas = document.querySelector("#canvas_in");
+const hint = document.querySelector("#hint");
 const canvas_out = document.querySelector("#canvas_out");
 const cmdOWOT = document.querySelector("#OWOT");
 const cmdCWOT = document.querySelector("#CWOT");
@@ -22,6 +23,18 @@ mouse_down = false;
 
 var points = {FHC:null, FHR: null, LFC:null, MFC:null, LTC:null, MTC:null, DTC: null};
 var points_fixed = {};
+var  hints = {
+   FHC: "select the femoral head centre",
+   FHR: "select any point at the femoral head rim",
+   LFC: "select the most distal part of the LATERAL FEMORAL condyle",
+   MFC: "select the most distal part of the MEDIAL FEMORAL condyle",
+   LTC: "select the most LATERAL part of the tibial plateau",
+   MTC: "select the most MEDIAL part of the tibial plateau",
+   DTC: "select the ankle joint center",
+   scale_p1: "select the first calibration point",
+   scale_p2: "select the second calibration point"
+}
+
 var bbox; 
 var angles= {mTFA: null, mLDFA: null, mMPTA: null, varus_valgus: null, side: null};
 var objs = {};
@@ -149,6 +162,11 @@ function addPoint(points) {
       mode_params.points = points;
       mode_params.name = p;
       canvas.style.cursor="crosshair";
+      if ( hints[p] ) {
+         hint.textContent = hints[p];
+         hint.hidden = false;
+      }
+
    }
    else {
       mode=modes.default;
@@ -157,6 +175,7 @@ function addPoint(points) {
       cmdOWOT.disabled=false;
       cmdCWOT.disabled=false;
       cmdScale.disabled=false;
+      hint.hidden = true;
       updateObjs("pre");
       drawObjs();
    }
@@ -447,11 +466,15 @@ function imageLoaded() {
 
    mode_params.onfinish = refPointsSet;
    addPoint(points);
+   resize();
+}
+
+function resize() {
+   canvas.width = canvas.parentElement.clientWidth - 4;
+   canvas.height = window.innerHeight-40;
+   canvas_out.width = canvas_out.parentElement.clientWidth -4;
+   canvas_out.height=window.innerHeight-40;
    redraw();
 }
 
-canvas.width=document.querySelector('#div_view').clientWidth / 2;
-canvas.height=window.innerHeight-50;
-canvas_out.width=document.querySelector('#div_view').clientWidth / 2;
-canvas_out.height=window.innerHeight-50;
 
