@@ -462,19 +462,25 @@ function imageLoaded() {
 
    view = new View(canvas,img);
    view.ctx.lineWidth=2;
-   view_out = new View(canvas_out,img, canvas_out.height / img.height);
+   view_out = new View(canvas_out,img);
+
+   window.onresize = function() {resize();redraw();}
+   resize();
 
    mode_params.onfinish = refPointsSet;
    addPoint(points);
-   resize();
+
+   redraw();
 }
 
 function resize() {
    canvas.width = canvas.parentElement.clientWidth - 4;
    canvas.height = window.innerHeight-40;
+   view.setZoom(view.zoom);
    canvas_out.width = canvas_out.parentElement.clientWidth -4;
    canvas_out.height=window.innerHeight-40;
-   redraw();
+   view_out.setZoom(canvas_out.height / img.height);
+   view_out.setCenter( { x: img.width/2, y: img.height/2 }, { x: canvas_out.width/2, y: canvas_out.height/2 } );
 }
 
 
