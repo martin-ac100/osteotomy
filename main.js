@@ -79,6 +79,7 @@ function setScale(event) {
 }
 
 function drawObjs(v=view) {
+   v.ctx.lineWidth = 2;
    for (i in objs) {
       if (objs[i]) { objs[i].draw(v); }
    }
